@@ -62,6 +62,6 @@ Please ensure all commits are properly commented and that the repository is set 
 
 ## Links
 
-- [GitHub Repository](https://github.com/)
+- [GitHub Repository](https://github.com/MattStanl3y/301FinalProject)
 - [Demonstration Video](link-to-video)
 - [Technical Document](link-to-document)
