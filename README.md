@@ -54,10 +54,9 @@ Please ensure all commits are properly commented and that the repository is set 
 
 ## Group Information
 
-- Group Name: [Group Name Here]
 - Team Members:
-  - Member 1
-  - Member 2
+  - Matt Stanley
+  - Jason Parmao
   - Member 3
   - Member 4
 
