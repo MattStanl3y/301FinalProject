@@ -28,7 +28,7 @@ This project aims to create an evaporation cooling system (a swamp cooler), whic
 - DHT11 sensor for temperature and humidity readings.
 - Motor and fan blade from the kit with a separate power supply board.
 
-![State Diagram](link-to-state-diagram-image)
+![State Diagram]()
 
 ## System States
 
