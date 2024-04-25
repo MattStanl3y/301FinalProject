@@ -57,8 +57,6 @@ Please ensure all commits are properly commented and that the repository is set 
 - Team Members:
   - Matt Stanley
   - Jason Parmar
-  - Member 3
-  - Member 4
 
 ## Links
 
