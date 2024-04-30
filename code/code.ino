@@ -18,10 +18,8 @@ const int MOTOR_PIN1 = 3;
 const int ENABLE_PIN = 5;
 
 // Stepper
-const int STEPPER_PIN1 = 8;
-const int STEPPER_PIN2 = 9;
-const int STEPPER_PIN3 = 10;
-const int STEPPER_PIN4 = 11;
+const int STEPS_PER_REV = 2038;
+Stepper stepper(STEPS_PER_REV, 8, 9, 10, 11);
 
 // Water Level Sensor
 const int POWER_PIN = 13;
@@ -54,10 +52,6 @@ volatile bool resetButtonPressed = false;
 // Initialize LCD
 LiquidCrystal lcd(RS_PIN, EN_PIN, D4_PIN, D5_PIN, D6_PIN, D7_PIN);
 
-// Initialize Stepper Motor
-const int STEPS_PER_REV = 5; // Adjust this later, may be too low
-Stepper stepper(STEPS_PER_REV, STEPPER_PIN1, STEPPER_PIN2, STEPPER_PIN3, STEPPER_PIN4);
-
 // Initialize DHT Sensor
 DHT dht(DHT_PIN, DHT_TYPE);
 
@@ -78,7 +72,6 @@ bool errorStateEntered = false;
 
 void setup()
 {
-
     // Initialize serial communication
     Serial.begin(9600);
 
@@ -105,9 +98,6 @@ void setup()
     lcd.begin(16, 2);
     lcd.print("System Initializing");
 
-    // Initialize Stepper Motor
-    stepper.setSpeed(5); // Adjust the speed later
-
     // Initialize DHT Sensor
     dht.begin();
 
@@ -122,9 +112,14 @@ void setup()
     // Configure interrupts for buttons
     attachInterrupt(digitalPinToInterrupt(ON_OFF_BUTTON), onOffButtonISR, FALLING);
     attachInterrupt(digitalPinToInterrupt(RESET_BUTTON), resetButtonISR, FALLING);
+
+    stepper.setSpeed(5);
+
 }
+
 void loop()
 {
+
     if (onOffButtonPressed)
     {
         onOffButtonPressed = false;
@@ -199,8 +194,8 @@ void controlFanMotor(bool state)
     }
     else
     {
-        digitalWrite(ENABLE_PIN, LOW);
         digitalWrite(MOTOR_PIN1, LOW);
+        digitalWrite(ENABLE_PIN, LOW);
     }
 }
 
@@ -268,10 +263,6 @@ void handleErrorState()
         recordTransitionTime("ERROR");
         errorStateEntered = true;
     }
-
-    // Check reset button (ISR)
-    // The reset button ISR should handle the transition to IDLE state
-    // when the water level is above the threshold
 }
 
 void handleIdleState()
@@ -343,19 +334,13 @@ void onOffButtonISR()
 
 void handleResetButton()
 {
-    static bool motorTurning = false;
-
-    if (!motorTurning)
+    if (currentState == ERROR && waterLevel >= 100)
     {
-        Stepper.setSpeed(5);
-        Stepper.step(STEPS_PER_REV);
-        motorTurning = true;
-    }
+        currentState = IDLE;
+        errorStateEntered = false;
 
-    else
-    {
-        Stepper.setSpeed(0);
-        motorTurning = false;
+        stepper.step(STEPS_PER_REV);
+        recordStepperPosition();
     }
 }
 
@@ -373,11 +358,11 @@ void handleOnOffButton()
 
 void resetButtonISR()
 {
-    if (waterLevel >= 100)
-    {
-        currentState = IDLE;
-        errorStateEntered = false;
-    }
+    resetButtonPressed = true;
+    // Turn the stepper motor when reset button is pressed
+    stepper.setSpeed(5);
+    stepper.step(STEPS_PER_REV);
+    recordStepperPosition();
 }
 
 // Handle DISABLED State
@@ -391,8 +376,6 @@ void handleDisabledState()
     controlFanMotor(false); // Ensure fan motor is off
 
     recordTransitionTime("DISABLED");
-
-    // ISR for start button should handle re-enabling the system
 }
 
 void recordTransitionTime(String state)
@@ -405,5 +388,5 @@ void recordTransitionTime(String state)
 void recordStepperPosition()
 {
     DateTime now = rtc.now();
-    Serial.println("Stepper Motor Position Changed to at: " + now.timestamp());
+    Serial.println("Stepper Motor Position Changed at: " + now.timestamp());
 }
