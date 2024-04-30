@@ -15,7 +15,6 @@ enum State
 
 // Fan
 const int MOTOR_PIN1 = 3;
-const int MOTOR_PIN2 = 4;
 const int ENABLE_PIN = 5;
 
 // Stepper
@@ -41,7 +40,7 @@ const int D6_PIN = 41;
 const int D7_PIN = 39;
 
 // Buttons and LEDs
-const int ON_OFF_BUTTON = 35;
+const int ON_OFF_BUTTON = 2;
 const int RESET_BUTTON = 34;
 const int YELLOW_LED = 25;
 const int GREEN_LED = 27;
@@ -49,8 +48,13 @@ const int RED_LED = 29;
 const int BLUE_LED = 31;
 
 // volatile buttonStates
-volatile bool onOffButtonState;
-volatile bool resetButtonState;
+volatile bool onOffButtonPressed = false;
+volatile bool resetButtonPressed = false;
+
+// ventPositions
+const int VENT_CONTROL_PIN = A1;
+const int VENT_CLOSED_POSITION = 0;
+const int VENT_OPEN_POSITION = 100;
 
 // Initialize LCD
 LiquidCrystal lcd(RS_PIN, EN_PIN, D4_PIN, D5_PIN, D6_PIN, D7_PIN);
@@ -72,6 +76,7 @@ float humidity;
 int waterLevel;
 bool fanStatus;
 DateTime lastTransitionTime;
+unsigned long lastUpdateTime = 0;
 
 /*-------------------------------------------------------*/
 
@@ -83,7 +88,6 @@ void setup()
 
     // Pin modes
     pinMode(MOTOR_PIN1, OUTPUT);
-    pinMode(MOTOR_PIN2, OUTPUT);
     pinMode(ENABLE_PIN, OUTPUT);
     pinMode(POWER_PIN, OUTPUT);
     pinMode(SIGNAL_PIN, INPUT);
@@ -118,18 +122,25 @@ void setup()
         while (1)
             ;
     }
-    if (rtc.lostPower())
-    {
-        Serial.println("RTC lost power, time is set to compilation time");
-        rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
-    }
 
     // Configure interrupts for buttons
-    attachInterrupt(digitalPinToInterrupt(ON_OFF_BUTTON), handleOnOffButton, FALLING);
+    attachInterrupt(digitalPinToInterrupt(ON_OFF_BUTTON), onOffButtonISR, FALLING);
     attachInterrupt(digitalPinToInterrupt(RESET_BUTTON), resetButtonISR, FALLING);
 }
 void loop()
 {
+    if (onOffButtonPressed)
+    {
+        onOffButtonPressed = false;
+        handleOnOffButton();
+    }
+
+    if (resetButtonPressed)
+    {
+        resetButtonPressed = false;
+        handleResetButton();
+    }
+
     currentState = determineState();
     switch (currentState)
     {
@@ -183,15 +194,27 @@ int readWaterLevel()
     return waterLevel;
 }
 
+int readVentPosition()
+{
+    int potValue = analogRead(VENT_CONTROL_PIN);
+    int ventPosition = map(analogRead(VENT_CONTROL_PIN), 0, 1023, VENT_CLOSED_POSITION, VENT_OPEN_POSITION);
+    return ventPosition;
+}
+
+void adjustVentPosition(int position)
+{
+    stepper.step(position);
+}
+
 void controlFanMotor(bool state)
 {
     if (state)
     {
-        analogWrite(FAN_PIN, 255);
+        analogWrite(ENABLE_PIN, 255);
     }
     else
     {
-        analogWrite(FAN_PIN, 0);
+        analogWrite(ENABLE_PIN, 0);
     }
 }
 
@@ -261,7 +284,6 @@ void handleErrorState()
     // when the water level is above the threshold
 }
 
-// Handle IDLE State
 void handleIdleState()
 {
     digitalWrite(GREEN_LED, HIGH); // GREEN LED ON to indicate IDLE state
@@ -279,7 +301,6 @@ void handleIdleState()
         lastUpdateTime = millis();
     }
 
-    // Record transition time to IDLE and any significant changes
     recordTransitionTime("IDLE");
 
     if (waterLevel < 100)
@@ -287,7 +308,9 @@ void handleIdleState()
         currentState = ERROR;
     }
 
-    // adjustVentPosition(readVentPosition());
+    int ventPosition = readVentPosition();
+    adjustVentPosition(ventPosition);
+    recordStepperPosition(ventPosition);
 }
 
 void handleRunningState()
@@ -326,14 +349,37 @@ void handleRunningState()
     // Control fan motor
     controlFanMotor(true);
 
-    /*
     int ventPosition = readVentPosition();
     adjustVentPosition(ventPosition);
     recordStepperPosition(ventPosition);
-    */
 }
 
-// Reset button ISR
+void onOffButtonISR()
+{
+    onOffButtonPressed = true;
+}
+
+void handleResetButton()
+{
+    if (currentState == ERROR && waterLevel >= 100)
+    {
+        currentState = IDLE;
+        resetButtonPressed = false;
+    }
+}
+
+void handleOnOffButton()
+{
+    if (currentState == DISABLED)
+    {
+        currentState = IDLE;
+    }
+    else
+    {
+        currentState = DISABLED;
+    }
+}
+
 void resetButtonISR()
 {
     if (waterLevel >= 100)
@@ -359,27 +405,14 @@ void handleDisabledState()
 
 void recordTransitionTime(String state)
 {
-    now = rtc.now();
+    DateTime now = rtc.now();
     Serial.println("Transition to " + state + " State at: " + now.timestamp());
 }
 
 void recordStepperPosition(int position)
 {
-    now = rtc.now();
+    DateTime now = rtc.now();
     Serial.println("Stepper Motor Position Changed to " + String(position) + " at: " + now.timestamp());
-}
-
-void handleOnOffButton()
-{
-    // Toggle the system between DISABLED and IDLE states
-    if (currentState == DISABLED)
-    {
-        currentState = IDLE;
-    }
-    else
-    {
-        currentState = DISABLED;
-    }
 }
 
 /*
@@ -419,5 +452,4 @@ Utility Functions
 Interrupt Service Routines
     void handleOnOffButton();
     void handleResetButton();
-
 */
