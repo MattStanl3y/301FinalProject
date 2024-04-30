@@ -18,10 +18,8 @@ const int MOTOR_PIN1 = 3;
 const int ENABLE_PIN = 5;
 
 // Stepper
-const int STEPPER_PIN1 = 8;
-const int STEPPER_PIN2 = 9;
-const int STEPPER_PIN3 = 10;
-const int STEPPER_PIN4 = 11;
+const int STEPS_PER_REV = 2038;
+Stepper stepper(STEPS_PER_REV, 8, 9, 10, 11);
 
 // Water Level Sensor
 const int POWER_PIN = 13;
@@ -54,10 +52,6 @@ volatile bool resetButtonPressed = false;
 // Initialize LCD
 LiquidCrystal lcd(RS_PIN, EN_PIN, D4_PIN, D5_PIN, D6_PIN, D7_PIN);
 
-// Initialize Stepper Motor
-const int STEPS_PER_REV = 5; // Adjust this later, may be too low
-Stepper stepper(STEPS_PER_REV, STEPPER_PIN1, STEPPER_PIN2, STEPPER_PIN3, STEPPER_PIN4);
-
 // Initialize DHT Sensor
 DHT dht(DHT_PIN, DHT_TYPE);
 
@@ -78,7 +72,6 @@ bool errorStateEntered = false;
 
 void setup()
 {
-
     // Initialize serial communication
     Serial.begin(9600);
 
@@ -105,9 +98,6 @@ void setup()
     lcd.begin(16, 2);
     lcd.print("System Initializing");
 
-    // Initialize Stepper Motor
-    stepper.setSpeed(5); // Adjust the speed later
-
     // Initialize DHT Sensor
     dht.begin();
 
@@ -122,9 +112,13 @@ void setup()
     // Configure interrupts for buttons
     attachInterrupt(digitalPinToInterrupt(ON_OFF_BUTTON), onOffButtonISR, FALLING);
     attachInterrupt(digitalPinToInterrupt(RESET_BUTTON), resetButtonISR, FALLING);
+
+    stepper.setSpeed(5);
 }
+
 void loop()
 {
+
     if (onOffButtonPressed)
     {
         onOffButtonPressed = false;
@@ -199,8 +193,8 @@ void controlFanMotor(bool state)
     }
     else
     {
-        digitalWrite(ENABLE_PIN, LOW);
         digitalWrite(MOTOR_PIN1, LOW);
+        digitalWrite(ENABLE_PIN, LOW);
     }
 }
 
@@ -268,10 +262,6 @@ void handleErrorState()
         recordTransitionTime("ERROR");
         errorStateEntered = true;
     }
-
-    // Check reset button (ISR)
-    // The reset button ISR should handle the transition to IDLE state
-    // when the water level is above the threshold
 }
 
 void handleIdleState()
@@ -341,43 +331,40 @@ void onOffButtonISR()
     onOffButtonPressed = true;
 }
 
-void handleResetButton()
-{
-    static bool motorTurning = false;
-
-    if (!motorTurning)
-    {
-        Stepper.setSpeed(5);
-        Stepper.step(STEPS_PER_REV);
-        motorTurning = true;
-    }
-
-    else
-    {
-        Stepper.setSpeed(0);
-        motorTurning = false;
-    }
-}
-
 void handleOnOffButton()
 {
     if (currentState == DISABLED)
     {
         currentState = IDLE;
+        digitalWrite(YELLOW_LED, LOW);
+        digitalWrite(GREEN_LED, HIGH);
+        Serial.println("System state: IDLE");
     }
     else
     {
         currentState = DISABLED;
+        digitalWrite(GREEN_LED, LOW);
+        digitalWrite(RED_LED, LOW);
+        digitalWrite(BLUE_LED, LOW);
+        digitalWrite(YELLOW_LED, HIGH);
+        Serial.println("System state: DISABLED");
     }
 }
 
 void resetButtonISR()
 {
-    if (waterLevel >= 100)
-    {
-        currentState = IDLE;
-        errorStateEntered = false;
-    }
+    resetButtonPressed = true;
+}
+
+void handleResetButton()
+{
+    static bool motorEnabled = false; // This will remember the motor state across function calls
+    motorEnabled = !motorEnabled;     // Toggle the state of motorEnabled
+    controlFanMotor(motorEnabled);    // Control the motor based on the toggled state
+
+    // Log motor state change
+    Serial.print("Motor is now ");
+    Serial.println(motorEnabled ? "ON" : "OFF");
 }
 
 // Handle DISABLED State
@@ -391,19 +378,16 @@ void handleDisabledState()
     controlFanMotor(false); // Ensure fan motor is off
 
     recordTransitionTime("DISABLED");
-
-    // ISR for start button should handle re-enabling the system
 }
 
 void recordTransitionTime(String state)
 {
     DateTime now = rtc.now();
     Serial.println("Transition to " + state + " State at: " + now.timestamp());
-    delay(500);
 }
 
 void recordStepperPosition()
 {
     DateTime now = rtc.now();
-    Serial.println("Stepper Motor Position Changed to at: " + now.timestamp());
+    Serial.println("Stepper Motor Position Changed at: " + now.timestamp());
 }
