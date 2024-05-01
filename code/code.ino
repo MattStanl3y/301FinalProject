@@ -1,4 +1,6 @@
 // these should be all the libraries we need
+// can't use digitalWrite, pinmode, delay, analogRead, 
+// can only use millis() for the one minute delay checking temp and humidity
 
 #include <LiquidCrystal.h>
 #include <Stepper.h>
@@ -14,11 +16,11 @@ enum State
 };
 
 // Fan
-const int MOTOR_PIN1 = 3;
+const int MOTOR_PIN1 = 4;
 const int ENABLE_PIN = 5;
 
 // Stepper
-const int STEPS_PER_REV = 2038;
+const int STEPS_PER_REV = 1018;
 Stepper stepper(STEPS_PER_REV, 8, 9, 10, 11);
 
 // Water Level Sensor
@@ -40,6 +42,7 @@ const int D7_PIN = 39;
 // Buttons and LEDs
 const int ON_OFF_BUTTON = 2;
 const int RESET_BUTTON = 34;
+const int STEP_MOTOR_BUTTON = 3;
 const int YELLOW_LED = 25;
 const int GREEN_LED = 27;
 const int RED_LED = 29;
@@ -48,6 +51,7 @@ const int BLUE_LED = 31;
 // volatile buttonStates
 volatile bool onOffButtonPressed = false;
 volatile bool resetButtonPressed = false;
+volatile bool stepMotorButtonPressed = false;
 
 // Initialize LCD
 LiquidCrystal lcd(RS_PIN, EN_PIN, D4_PIN, D5_PIN, D6_PIN, D7_PIN);
@@ -57,6 +61,8 @@ DHT dht(DHT_PIN, DHT_TYPE);
 
 // Initialize RTC
 RTC_DS1307 rtc;
+
+
 
 // Variables
 State currentState = IDLE;
@@ -68,7 +74,7 @@ DateTime lastTransitionTime;
 unsigned long lastUpdateTime = 0;
 bool errorStateEntered = false;
 
-/*-------------------------------------------------------*/
+// ------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 void setup()
 {
@@ -83,6 +89,7 @@ void setup()
     pinMode(DHT_PIN, INPUT);
     pinMode(ON_OFF_BUTTON, INPUT_PULLUP);
     pinMode(RESET_BUTTON, INPUT_PULLUP);
+    pinMode(STEP_MOTOR_BUTTON, INPUT_PULLUP);
     pinMode(YELLOW_LED, OUTPUT);
     pinMode(GREEN_LED, OUTPUT);
     pinMode(RED_LED, OUTPUT);
@@ -112,14 +119,16 @@ void setup()
     // Configure interrupts for buttons
     attachInterrupt(digitalPinToInterrupt(ON_OFF_BUTTON), onOffButtonISR, FALLING);
     attachInterrupt(digitalPinToInterrupt(RESET_BUTTON), resetButtonISR, FALLING);
-
-    stepper.setSpeed(5);
-
+    attachInterrupt(digitalPinToInterrupt(STEP_MOTOR_BUTTON), stepMotorISR, FALLING);
 }
 
 void loop()
 {
-
+    if (stepMotorButtonPressed)
+    {
+        stepMotorButtonPressed = false;
+        handleStepMotorButton();
+    }
     if (onOffButtonPressed)
     {
         onOffButtonPressed = false;
@@ -149,10 +158,10 @@ void loop()
         break;
     }
 
-    delay(1000); // Loop delay for debouncing and stability
+    delay(100); // Loop delay for debouncing and stability
 }
 
-/*--------------------------------------------------------------*/
+// ------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 float readTemperature()
 {
@@ -199,19 +208,19 @@ void controlFanMotor(bool state)
     }
 }
 
-void updateLCD(float temperature, float humidity, int waterLevel)
+void updateLCD(float temperature, float humidity)
 {
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.print("Temp: ");
     lcd.print(temperature);
     lcd.print(" C");
     lcd.setCursor(0, 1);
     lcd.print("Hum: ");
     lcd.print(humidity);
-    lcd.print("%% WL: ");
-    lcd.print(waterLevel);
 }
+
+// ------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
 
 State determineState()
 {
@@ -227,7 +236,7 @@ State determineState()
     }
 
     // Check for any error conditions in sensor readings
-    if (temperature == -999.0 || humidity == -999.0 || waterLevel < 100) // Use standardized error handling
+    if (temperature == -999.0 || humidity == -999.0 || waterLevel < 100 || waterLevel > 200) // Use standardized error handling
     {
         return ERROR;
     }
@@ -242,15 +251,20 @@ State determineState()
     return IDLE;
 }
 
+// ------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
 void handleErrorState()
 {
     // Turn off the fan motor
     controlFanMotor(false);
 
-    // Display error message on LCD
+    // Display message on LCD
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("Error: Low Water");
+    waterLevel = readWaterLevel();
+    lcd.setCursor(0, 1);
+    lcd.print(waterLevel);
 
     // Set LED indicators
     digitalWrite(GREEN_LED, LOW);
@@ -258,10 +272,17 @@ void handleErrorState()
     digitalWrite(RED_LED, HIGH);
     digitalWrite(YELLOW_LED, LOW);
 
-    if (!errorStateEntered)
+    recordTransitionTime("ERROR");
+
+    // Update LCD every minute
+    if (millis() - lastUpdateTime >= 60000)
     {
-        recordTransitionTime("ERROR");
-        errorStateEntered = true;
+        temperature = readTemperature();
+        humidity = readHumidity();
+        waterLevel = readWaterLevel();
+        updateLCD(temperature, humidity);
+        lastUpdateTime = millis();
+        delay(3000);
     }
 }
 
@@ -278,9 +299,18 @@ void handleIdleState()
         temperature = readTemperature();
         humidity = readHumidity();
         waterLevel = readWaterLevel();
-        updateLCD(temperature, humidity, waterLevel);
+        updateLCD(temperature, humidity);
         lastUpdateTime = millis();
+        delay(3000);
     }
+
+    // Display message on LCD
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Water Level:");
+    waterLevel = readWaterLevel();
+    lcd.setCursor(0, 1);
+    lcd.print(waterLevel);
 
     recordTransitionTime("IDLE");
 
@@ -308,7 +338,7 @@ void handleRunningState()
     }
 
     // Check temperature
-    if (temperature <= 20)
+    if (humidity <= 20)
     {
         currentState = IDLE;
         return;
@@ -318,51 +348,12 @@ void handleRunningState()
     {
         temperature = readTemperature();
         humidity = readHumidity();
-        waterLevel = readWaterLevel();
-        updateLCD(temperature, humidity, waterLevel);
+        updateLCD(temperature, humidity);
         lastUpdateTime = millis();
     }
 
     // Control fan motor
     controlFanMotor(true);
-}
-
-void onOffButtonISR()
-{
-    onOffButtonPressed = true;
-}
-
-void handleResetButton()
-{
-    if (currentState == ERROR && waterLevel >= 100)
-    {
-        currentState = IDLE;
-        errorStateEntered = false;
-
-        stepper.step(STEPS_PER_REV);
-        recordStepperPosition();
-    }
-}
-
-void handleOnOffButton()
-{
-    if (currentState == DISABLED)
-    {
-        currentState = IDLE;
-    }
-    else
-    {
-        currentState = DISABLED;
-    }
-}
-
-void resetButtonISR()
-{
-    resetButtonPressed = true;
-    // Turn the stepper motor when reset button is pressed
-    stepper.setSpeed(5);
-    stepper.step(STEPS_PER_REV);
-    recordStepperPosition();
 }
 
 // Handle DISABLED State
@@ -376,13 +367,75 @@ void handleDisabledState()
     controlFanMotor(false); // Ensure fan motor is off
 
     recordTransitionTime("DISABLED");
+
+    lcd.clear(); 
+    lcd.setCursor(0, 0);
+    lcd.print("Disabled");
+}
+
+// ------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+void handleResetButton()
+{
+    if (currentState == ERROR)
+    {
+        currentState = IDLE;
+        errorStateEntered = false;
+    }
+}
+
+void handleStepMotorButton()
+{
+    stepper.setSpeed(7);
+    stepper.step(STEPS_PER_REV);
+    recordStepperPosition();
+}
+
+
+void handleOnOffButton()
+{
+    if (currentState == DISABLED)
+    {
+        currentState = IDLE;
+    }
+    else
+    {
+        currentState = DISABLED;
+    }
+}
+
+void stepMotorISR()
+{
+    stepMotorButtonPressed = true;
+}
+
+void resetButtonISR()
+{
+    resetButtonPressed = true;
+    // reset to idle state when in error state and water level above threshold
+}
+
+void onOffButtonISR()
+{
+    onOffButtonPressed = true;
 }
 
 void recordTransitionTime(String state)
 {
+    // Define static variables to store last state and transition time
+    static String lastState = "";
+    static DateTime lastTransitionTime;
+
     DateTime now = rtc.now();
-    Serial.println("Transition to " + state + " State at: " + now.timestamp());
-    delay(500);
+    
+    // Check if the new state is different from the last recorded state
+    if (state != lastState) {
+        Serial.println(state + " state at: " + now.timestamp());
+        lastState = state;
+        lastTransitionTime = now;
+        delay(100);
+    }
 }
 
 void recordStepperPosition()
