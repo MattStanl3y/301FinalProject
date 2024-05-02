@@ -41,7 +41,6 @@ const int D7_PIN = 39;
 
 // Buttons and LEDs
 const int ON_OFF_BUTTON = 2;
-const int RESET_BUTTON = 34;
 const int STEP_MOTOR_BUTTON = 3;
 const int YELLOW_LED = 25;
 const int GREEN_LED = 27;
@@ -50,7 +49,6 @@ const int BLUE_LED = 31;
 
 // volatile buttonStates
 volatile bool onOffButtonPressed = false;
-volatile bool resetButtonPressed = false;
 volatile bool stepMotorButtonPressed = false;
 
 // Initialize LCD
@@ -62,17 +60,13 @@ DHT dht(DHT_PIN, DHT_TYPE);
 // Initialize RTC
 RTC_DS1307 rtc;
 
-
-
 // Variables
 State currentState = IDLE;
 float temperature;
 float humidity;
 int waterLevel;
-bool fanStatus;
 DateTime lastTransitionTime;
 unsigned long lastUpdateTime = 0;
-bool errorStateEntered = false;
 
 // ------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -87,9 +81,6 @@ void setup()
     pinMode(POWER_PIN, OUTPUT);
     pinMode(SIGNAL_PIN, INPUT);
     pinMode(DHT_PIN, INPUT);
-    pinMode(ON_OFF_BUTTON, INPUT_PULLUP);
-    pinMode(RESET_BUTTON, INPUT_PULLUP);
-    pinMode(STEP_MOTOR_BUTTON, INPUT_PULLUP);
     pinMode(YELLOW_LED, OUTPUT);
     pinMode(GREEN_LED, OUTPUT);
     pinMode(RED_LED, OUTPUT);
@@ -118,7 +109,6 @@ void setup()
 
     // Configure interrupts for buttons
     attachInterrupt(digitalPinToInterrupt(ON_OFF_BUTTON), onOffButtonISR, FALLING);
-    attachInterrupt(digitalPinToInterrupt(RESET_BUTTON), resetButtonISR, FALLING);
     attachInterrupt(digitalPinToInterrupt(STEP_MOTOR_BUTTON), stepMotorISR, FALLING);
 }
 
@@ -133,12 +123,6 @@ void loop()
     {
         onOffButtonPressed = false;
         handleOnOffButton();
-    }
-
-    if (resetButtonPressed)
-    {
-        resetButtonPressed = false;
-        handleResetButton();
     }
 
     currentState = determineState();
@@ -242,7 +226,7 @@ State determineState()
     }
 
     // Check if conditions to run the system are met
-    if (temperature > 20) // Threshold for activating the system, adjust as necessary
+    if (humidity > 33.00) // Threshold for activating the system, adjust as necessary
     {
         return RUNNING;
     }
@@ -293,6 +277,9 @@ void handleIdleState()
     digitalWrite(BLUE_LED, LOW);   // Ensure BLUE LED is OFF
     digitalWrite(YELLOW_LED, LOW); // Ensure YELLOW LED is OFF
 
+    controlFanMotor(false); // Ensure fan motor is off
+
+
     // Update LCD every minute
     if (millis() - lastUpdateTime >= 60000)
     {
@@ -303,6 +290,7 @@ void handleIdleState()
         lastUpdateTime = millis();
         delay(3000);
     }
+    
 
     // Display message on LCD
     lcd.clear();
@@ -344,12 +332,18 @@ void handleRunningState()
         return;
     }
 
+        // Display message on LCD
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("Running");
+
     if (millis() - lastUpdateTime >= 60000)
     {
         temperature = readTemperature();
         humidity = readHumidity();
         updateLCD(temperature, humidity);
         lastUpdateTime = millis();
+        delay(3000);
     }
 
     // Control fan motor
@@ -364,7 +358,7 @@ void handleDisabledState()
     digitalWrite(BLUE_LED, LOW);    // Ensure BLUE LED is OFF
     digitalWrite(RED_LED, LOW);     // Ensure RED LED is OFF
 
-    controlFanMotor(false); // Ensure fan motor is off
+    controlFanMotor(false);
 
     recordTransitionTime("DISABLED");
 
@@ -375,21 +369,14 @@ void handleDisabledState()
 
 // ------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-
-void handleResetButton()
-{
-    if (currentState == ERROR)
-    {
-        currentState = IDLE;
-        errorStateEntered = false;
-    }
-}
-
 void handleStepMotorButton()
 {
-    stepper.setSpeed(7);
-    stepper.step(STEPS_PER_REV);
-    recordStepperPosition();
+    if (currentState != ERROR)
+    {
+        stepper.setSpeed(7);
+        stepper.step(STEPS_PER_REV);
+        recordStepperPosition();
+    }
 }
 
 
@@ -408,12 +395,6 @@ void handleOnOffButton()
 void stepMotorISR()
 {
     stepMotorButtonPressed = true;
-}
-
-void resetButtonISR()
-{
-    resetButtonPressed = true;
-    // reset to idle state when in error state and water level above threshold
 }
 
 void onOffButtonISR()
