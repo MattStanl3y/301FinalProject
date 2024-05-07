@@ -1,32 +1,29 @@
 
-
 // GPIO Pointers
-volatile unsigned char *portE = (unsigned char *)0x2E;
-volatile unsigned char *portDDRE = (unsigned char *)0x2D;
+volatile uint8_t *_portE = (volatile uint8_t *)0x2E;
+volatile uint8_t *_portDDRE = (volatile uint8_t *)0x2D;
 
-const int motorPin1 = 3;
-const int enablePin = 5;
+const int motorPin1 = 3; // Corresponds to PE3
+const int enablePin = 5; // Corresponds to PE5
 
 void setup()
 {
-    *portDDRE |= (1 << 5); // PE5 (pin 3) as output
-    *portDDRE |= (1 << 3); // PE3 (pin 5) as output
+    *_portDDRE |= (1 << enablePin); // Set PE5 as output, labeled pin 5
+    *_portDDRE |= (1 << motorPin1); // Set PE3 as output, labeled pin 3
 
-    // Ensure both pins are initially low
-    *portE &= ~(1 << 5); // PE5 (pin 3) low
-    *portE &= ~(1 << 3); // PE3 (pin 5) low
+    // start pins low
+    *_portE &= ~(1 << enablePin); // Set PE5 low
+    *_portE &= ~(1 << motorPin1); // Set PE3 low
 }
 
 void loop()
 {
-    *portE |= (1 << 3); // PE3 (pin 5) high
-    *portE |= (1 << 5); // PE5 (pin 3) high
-
+    *_portE |= (1 << motorPin1); // Set PE3 high
+    *_portE |= (1 << enablePin); // Set PE5 high
     delay(5000);
 
-    // Turn off  fan
-    *portE &= ~(1 << 5); // PE5 (pin 3) low
-    *portE &= ~(1 << 3); // PE3 (pin 5) low
-
+    // Turn off fan
+    *_portE &= ~(1 << enablePin); // Set PE5 low
+    *_portE &= ~(1 << motorPin1); // Set PE3 low
     delay(5000);
 }
