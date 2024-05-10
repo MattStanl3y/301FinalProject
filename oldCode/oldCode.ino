@@ -1,5 +1,8 @@
 // these should be all the libraries we need
 
+
+// changed to old code since this is old I think
+
 #include <LiquidCrystal.h>
 #include <Stepper.h>
 #include <RTClib.h>
