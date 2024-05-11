@@ -20,7 +20,7 @@ void setup()
     *_portB &= ~(1 << 7);   // Set PB7 (digital pin 13) low
 
     // Configure ADC
-    *_ADMUX = (1 << 6);                                                         // Set reference voltage to AVCC
+    *_ADMUX = (1 << 6) | (0 << 0);                                              // Set reference voltage to AVCC, select ADC0 (A0)
     *_ADCSRA = (1 << 7) | (1 << 6) | (1 << 5) | (1 << 2) | (1 << 1) | (1 << 0); // Enable ADC, set prescaler to 128
 }
 
