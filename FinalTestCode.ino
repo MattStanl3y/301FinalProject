@@ -186,7 +186,7 @@ int readWaterLevel()
         ;
     int waterLevel = *_ADCL | (*_ADCH << 8);
 
-    *_portB &= ~(1 << 7); // Set PB7 (POWER_PIN) low
+    *_portB |= (1 << 7);
 
     return waterLevel;
 }
@@ -437,86 +437,3 @@ void recordStepperPosition()
     DateTime now = rtc.now();
     Serial.println("Stepper Motor Position Changed at: " + now.timestamp());
 }
-
-/*
-/private/var/folders/g7/9z_y3bl14wb5k4y3yrxsy80h0000gn/T/.arduinoIDE-unsaved2024410-2055-6xes0a.1ag0p/sketch_may10b/sketch_may10b.ino: In function 'void setup()':
-/private/var/folders/g7/9z_y3bl14wb5k4y3yrxsy80h0000gn/T/.arduinoIDE-unsaved2024410-2055-6xes0a.1ag0p/sketch_may10b/sketch_may10b.ino:90:6: error: '_portDDRC' was not declared in this scope
-     *_portDDRC |= (1 << 6);                       // Set PC6 (BLUE_LED) as output
-      ^~~~~~~~~
-/private/var/folders/g7/9z_y3bl14wb5k4y3yrxsy80h0000gn/T/.arduinoIDE-unsaved2024410-2055-6xes0a.1ag0p/sketch_may10b/sketch_may10b.ino:90:6: note: suggested alternative: '_portDDRL'
-     *_portDDRC |= (1 << 6);                       // Set PC6 (BLUE_LED) as output
-      ^~~~~~~~~
-      _portDDRL
-/private/var/folders/g7/9z_y3bl14wb5k4y3yrxsy80h0000gn/T/.arduinoIDE-unsaved2024410-2055-6xes0a.1ag0p/sketch_may10b/sketch_may10b.ino:94:6: error: '_portC' was not declared in this scope
-     *_portC &= ~(1 << 6);                         // Set PC6 (BLUE_LED) low
-      ^~~~~~
-/private/var/folders/g7/9z_y3bl14wb5k4y3yrxsy80h0000gn/T/.arduinoIDE-unsaved2024410-2055-6xes0a.1ag0p/sketch_may10b/sketch_may10b.ino:94:6: note: suggested alternative: '_portL'
-     *_portC &= ~(1 << 6);                         // Set PC6 (BLUE_LED) low
-      ^~~~~~
-      _portL
-/private/var/folders/g7/9z_y3bl14wb5k4y3yrxsy80h0000gn/T/.arduinoIDE-unsaved2024410-2055-6xes0a.1ag0p/sketch_may10b/sketch_may10b.ino: In function 'int readWaterLevel()':
-/private/var/folders/g7/9z_y3bl14wb5k4y3yrxsy80h0000gn/T/.arduinoIDE-unsaved2024410-2055-6xes0a.1ag0p/sketch_may10b/sketch_may10b.ino:179:6: error: '_ADMUX' was not declared in this scope
-     *_ADMUX = (*_ADMUX & 0xF0) | 0x00;
-      ^~~~~~
-/private/var/folders/g7/9z_y3bl14wb5k4y3yrxsy80h0000gn/T/.arduinoIDE-unsaved2024410-2055-6xes0a.1ag0p/sketch_may10b/sketch_may10b.ino:179:6: note: suggested alternative: 'ADMUX'
-     *_ADMUX = (*_ADMUX & 0xF0) | 0x00;
-      ^~~~~~
-      ADMUX
-/private/var/folders/g7/9z_y3bl14wb5k4y3yrxsy80h0000gn/T/.arduinoIDE-unsaved2024410-2055-6xes0a.1ag0p/sketch_may10b/sketch_may10b.ino:182:6: error: '_ADCSRA' was not declared in this scope
-     *_ADCSRA |= (1 << ADSC);
-      ^~~~~~~
-/private/var/folders/g7/9z_y3bl14wb5k4y3yrxsy80h0000gn/T/.arduinoIDE-unsaved2024410-2055-6xes0a.1ag0p/sketch_may10b/sketch_may10b.ino:182:6: note: suggested alternative: 'ADCSRA'
-     *_ADCSRA |= (1 << ADSC);
-      ^~~~~~~
-      ADCSRA
-/private/var/folders/g7/9z_y3bl14wb5k4y3yrxsy80h0000gn/T/.arduinoIDE-unsaved2024410-2055-6xes0a.1ag0p/sketch_may10b/sketch_may10b.ino:189:23: error: '_ADCL' was not declared in this scope
-     int waterLevel = *_ADCL | (*_ADCH << 8);
-                       ^~~~~
-/private/var/folders/g7/9z_y3bl14wb5k4y3yrxsy80h0000gn/T/.arduinoIDE-unsaved2024410-2055-6xes0a.1ag0p/sketch_may10b/sketch_may10b.ino:189:23: note: suggested alternative: 'ADCL'
-     int waterLevel = *_ADCL | (*_ADCH << 8);
-                       ^~~~~
-                       ADCL
-/private/var/folders/g7/9z_y3bl14wb5k4y3yrxsy80h0000gn/T/.arduinoIDE-unsaved2024410-2055-6xes0a.1ag0p/sketch_may10b/sketch_may10b.ino:189:33: error: '_ADCH' was not declared in this scope
-     int waterLevel = *_ADCL | (*_ADCH << 8);
-                                 ^~~~~
-/private/var/folders/g7/9z_y3bl14wb5k4y3yrxsy80h0000gn/T/.arduinoIDE-unsaved2024410-2055-6xes0a.1ag0p/sketch_may10b/sketch_may10b.ino:189:33: note: suggested alternative: 'ADCH'
-     int waterLevel = *_ADCL | (*_ADCH << 8);
-                                 ^~~~~
-                                 ADCH
-/private/var/folders/g7/9z_y3bl14wb5k4y3yrxsy80h0000gn/T/.arduinoIDE-unsaved2024410-2055-6xes0a.1ag0p/sketch_may10b/sketch_may10b.ino: In function 'void handleErrorState()':
-/private/var/folders/g7/9z_y3bl14wb5k4y3yrxsy80h0000gn/T/.arduinoIDE-unsaved2024410-2055-6xes0a.1ag0p/sketch_may10b/sketch_may10b.ino:272:6: error: '_portC' was not declared in this scope
-     *_portC &= ~(1 << 6); // Set PC6 (BLUE_LED) low
-      ^~~~~~
-/private/var/folders/g7/9z_y3bl14wb5k4y3yrxsy80h0000gn/T/.arduinoIDE-unsaved2024410-2055-6xes0a.1ag0p/sketch_may10b/sketch_may10b.ino:272:6: note: suggested alternative: '_portL'
-     *_portC &= ~(1 << 6); // Set PC6 (BLUE_LED) low
-      ^~~~~~
-      _portL
-/private/var/folders/g7/9z_y3bl14wb5k4y3yrxsy80h0000gn/T/.arduinoIDE-unsaved2024410-2055-6xes0a.1ag0p/sketch_may10b/sketch_may10b.ino: In function 'void handleIdleState()':
-/private/var/folders/g7/9z_y3bl14wb5k4y3yrxsy80h0000gn/T/.arduinoIDE-unsaved2024410-2055-6xes0a.1ag0p/sketch_may10b/sketch_may10b.ino:294:6: error: '_portC' was not declared in this scope
-     *_portC &= ~(1 << 6); // Set PC6 (BLUE_LED) low
-      ^~~~~~
-/private/var/folders/g7/9z_y3bl14wb5k4y3yrxsy80h0000gn/T/.arduinoIDE-unsaved2024410-2055-6xes0a.1ag0p/sketch_may10b/sketch_may10b.ino:294:6: note: suggested alternative: '_portL'
-     *_portC &= ~(1 << 6); // Set PC6 (BLUE_LED) low
-      ^~~~~~
-      _portL
-/private/var/folders/g7/9z_y3bl14wb5k4y3yrxsy80h0000gn/T/.arduinoIDE-unsaved2024410-2055-6xes0a.1ag0p/sketch_may10b/sketch_may10b.ino: In function 'void handleRunningState()':
-/private/var/folders/g7/9z_y3bl14wb5k4y3yrxsy80h0000gn/T/.arduinoIDE-unsaved2024410-2055-6xes0a.1ag0p/sketch_may10b/sketch_may10b.ino:328:6: error: '_portC' was not declared in this scope
-     *_portC |= (1 << 6);  // Set PC6 (BLUE_LED) high
-      ^~~~~~
-/private/var/folders/g7/9z_y3bl14wb5k4y3yrxsy80h0000gn/T/.arduinoIDE-unsaved2024410-2055-6xes0a.1ag0p/sketch_may10b/sketch_may10b.ino:328:6: note: suggested alternative: '_portL'
-     *_portC |= (1 << 6);  // Set PC6 (BLUE_LED) high
-      ^~~~~~
-      _portL
-/private/var/folders/g7/9z_y3bl14wb5k4y3yrxsy80h0000gn/T/.arduinoIDE-unsaved2024410-2055-6xes0a.1ag0p/sketch_may10b/sketch_may10b.ino: In function 'void handleDisabledState()':
-/private/var/folders/g7/9z_y3bl14wb5k4y3yrxsy80h0000gn/T/.arduinoIDE-unsaved2024410-2055-6xes0a.1ag0p/sketch_may10b/sketch_may10b.ino:373:6: error: '_portC' was not declared in this scope
-     *_portC &= ~(1 << 6); // Set PC6 (BLUE_LED) low
-      ^~~~~~
-/private/var/folders/g7/9z_y3bl14wb5k4y3yrxsy80h0000gn/T/.arduinoIDE-unsaved2024410-2055-6xes0a.1ag0p/sketch_may10b/sketch_may10b.ino:373:6: note: suggested alternative: '_portL'
-     *_portC &= ~(1 << 6); // Set PC6 (BLUE_LED) low
-      ^~~~~~
-      _portL
-
-exit status 1
-
-Compilation error: '_portDDRC' was not declared in this scope
-*/
