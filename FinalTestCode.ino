@@ -180,13 +180,15 @@ float readHumidity()
 
 int readWaterLevel()
 {
+    *_portB |= (1 << 7); // Set PB7 (POWER_PIN) high
+
     *_ADMUX = (*_ADMUX & 0xF0) | 0x00;
     *_ADCSRA |= (1 << ADSC);
     while ((*_ADCSRA & (1 << ADSC)) != 0)
         ;
     int waterLevel = *_ADCL | (*_ADCH << 8);
 
-    *_portB |= (1 << 7);
+    *_portB &= ~(1 << 7); // Set PB7 (POWER_PIN) low
 
     return waterLevel;
 }
