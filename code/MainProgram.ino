@@ -1,7 +1,3 @@
-// these should be all the libraries we need
-// can't use digitalWrite, pinmode, delay, analogRead, 
-// can only use millis() for the one minute delay checking temp and humidity
-
 #include <LiquidCrystal.h>
 #include <Stepper.h>
 #include <RTClib.h>
@@ -15,17 +11,17 @@ enum State
     DISABLED
 };
 
-// Fan
-const int MOTOR_PIN1 = 4;
-const int ENABLE_PIN = 5;
+ #define RDA 0x80
+ #define TBE 0x20  
+ volatile unsigned char *myUCSR0A = (unsigned char *)0x00C0;
+ volatile unsigned char *myUCSR0B = (unsigned char *)0x00C1;
+ volatile unsigned char *myUCSR0C = (unsigned char *)0x00C2;
+ volatile unsigned int  *myUBRR0  = (unsigned int *) 0x00C4;
+ volatile unsigned char *myUDR0   = (unsigned char *)0x00C6;
 
 // Stepper
 const int STEPS_PER_REV = 1018;
 Stepper stepper(STEPS_PER_REV, 8, 9, 10, 11);
-
-// Water Level Sensor
-const int POWER_PIN = 13;
-const int SIGNAL_PIN = A0;
 
 // DHT
 const int DHT_PIN = 53;
@@ -42,10 +38,24 @@ const int D7_PIN = 39;
 // Buttons and LEDs
 const int ON_OFF_BUTTON = 2;
 const int STEP_MOTOR_BUTTON = 3;
-const int YELLOW_LED = 25;
-const int GREEN_LED = 27;
-const int RED_LED = 29;
-const int BLUE_LED = 31;
+
+// GPIO Pointers
+volatile uint8_t *_portB = (volatile uint8_t *)0x25;
+volatile uint8_t *_portDDRB = (volatile uint8_t *)0x24;
+volatile uint8_t *_portG = (volatile uint8_t *)0x34;
+volatile uint8_t *_portDDRG = (volatile uint8_t *)0x33;
+volatile uint8_t *_portE = (volatile uint8_t *)0x2E;
+volatile uint8_t *_portDDRE = (volatile uint8_t *)0x2D;
+volatile uint8_t *_portA = (volatile uint8_t *)0x22;
+volatile uint8_t *_portDDRA = (volatile uint8_t *)0x21;
+volatile uint8_t *_portC = (volatile uint8_t *)0x28;    
+volatile uint8_t *_portDDRC = (volatile uint8_t *)0x27; 
+
+// ADC Pointers
+volatile uint8_t *_ADMUX = (volatile uint8_t *)0x7C;  
+volatile uint8_t *_ADCSRA = (volatile uint8_t *)0x7A; 
+volatile uint8_t *_ADCL = (volatile uint8_t *)0x78;   
+volatile uint8_t *_ADCH = (volatile uint8_t *)0x79;   
 
 // volatile buttonStates
 volatile bool onOffButtonPressed = false;
@@ -72,25 +82,25 @@ unsigned long lastUpdateTime = 0;
 
 void setup()
 {
-    // Initialize serial communication
-    Serial.begin(9600);
+    U0init(9600);
 
-    // Pin modes
-    pinMode(MOTOR_PIN1, OUTPUT);
-    pinMode(ENABLE_PIN, OUTPUT);
-    pinMode(POWER_PIN, OUTPUT);
-    pinMode(SIGNAL_PIN, INPUT);
-    pinMode(DHT_PIN, INPUT);
-    pinMode(YELLOW_LED, OUTPUT);
-    pinMode(GREEN_LED, OUTPUT);
-    pinMode(RED_LED, OUTPUT);
-    pinMode(BLUE_LED, OUTPUT);
+    // Pins
+    *_portDDRG |= (1 << 5); 
+    *_portDDRE |= (1 << 3); 
+    *_portDDRB |= (1 << 7);                       
+    *_portDDRA |= (1 << 0);                       
+    *_portDDRA |= (1 << 3) | (1 << 5) | (1 << 7); 
+    *_portDDRC |= (1 << 6);                       
 
-    // states of LED's
-    digitalWrite(YELLOW_LED, LOW);
-    digitalWrite(GREEN_LED, LOW);
-    digitalWrite(RED_LED, LOW);
-    digitalWrite(BLUE_LED, LOW);
+    // Set initial states of LEDs
+    *_portA &= ~((1 << 3) | (1 << 5) | (1 << 7)); 
+    *_portC &= ~(1 << 6);                         
+    *_portB &= ~(1 << 7);
+    *_portG &= ~(1 << 5); 
+    *_portE &= ~(1 << 3); 
+
+    *_ADMUX = (1 << REFS0);
+    *_ADCSRA = (1 << ADEN) | (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0);
 
     // Initialize LCD
     lcd.begin(16, 2);
@@ -100,16 +110,22 @@ void setup()
     dht.begin();
 
     // Initialize RTC
-    if (!rtc.begin())
-    {
-        Serial.println("Couldn't find RTC");
-        while (1)
-            ;
-    }
+    rtc.begin();
 
-    // Configure interrupts for buttons
+    // button interrupt
     attachInterrupt(digitalPinToInterrupt(ON_OFF_BUTTON), onOffButtonISR, FALLING);
     attachInterrupt(digitalPinToInterrupt(STEP_MOTOR_BUTTON), stepMotorISR, FALLING);
+}
+
+void U0init(unsigned long U0baud)
+{
+ unsigned long FCPU = 16000000;
+ unsigned int tbaud;
+ tbaud = (FCPU / 16 / U0baud - 1);
+ *myUCSR0A = 0x20;
+ *myUCSR0B = 0x18;
+ *myUCSR0C = 0x06;
+ *myUBRR0  = tbaud;
 }
 
 void loop()
@@ -124,7 +140,6 @@ void loop()
         onOffButtonPressed = false;
         handleOnOffButton();
     }
-
     currentState = determineState();
     switch (currentState)
     {
@@ -141,8 +156,7 @@ void loop()
         handleDisabledState();
         break;
     }
-
-    delay(100); // Loop delay for debouncing and stability
+    my_delay(1);
 }
 
 // ------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -150,11 +164,6 @@ void loop()
 float readTemperature()
 {
     float temperature = dht.readTemperature();
-    if (isnan(temperature))
-    {
-        Serial.println("Failed to read temperature from DHT sensor!");
-        return -999.0;
-    }
     return temperature;
 }
 
@@ -162,33 +171,35 @@ float readHumidity()
 {
     float humidity = dht.readHumidity();
     if (isnan(humidity))
-    {
-        Serial.println("Failed to read humidity from DHT sensor!");
-        return -999.0;
-    }
     return humidity;
 }
 
+
 int readWaterLevel()
 {
-    digitalWrite(POWER_PIN, HIGH);
-    delay(10);
-    int waterLevel = analogRead(SIGNAL_PIN);
-    digitalWrite(POWER_PIN, LOW);
-    return waterLevel;
+    *_portB |= (1 << 7); 
+
+    *_ADMUX = (*_ADMUX & 0xF0) | 0x00;
+    *_ADCSRA |= (1 << ADSC);
+    while ((*_ADCSRA & (1 << ADSC)) != 0);
+    int waterValue = *_ADCL | (*_ADCH << 8);
+
+    *_portB &= ~(1 << 7); 
+
+    return waterValue;
 }
 
 void controlFanMotor(bool state)
 {
     if (state)
     {
-        digitalWrite(ENABLE_PIN, HIGH);
-        digitalWrite(MOTOR_PIN1, HIGH);
+        *_portE |= (1 << 3);
+        *_portG |= (1 << 5);
     }
     else
     {
-        digitalWrite(MOTOR_PIN1, LOW);
-        digitalWrite(ENABLE_PIN, LOW);
+        *_portG &= ~(1 << 5);
+        *_portE &= ~(1 << 3);
     }
 }
 
@@ -205,28 +216,27 @@ void updateLCD(float temperature, float humidity)
 
 // ------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-
 State determineState()
 {
-    // Read sensor values
-    temperature = readTemperature(); // Ensure these variables are globally declared
+    // Read sensors
+    temperature = readTemperature(); 
     humidity = readHumidity();
     waterLevel = readWaterLevel();
 
-    // Check if the system is manually disabled via a button
-    if (currentState == DISABLED) // Use a global variable updated by an ISR
+    // Check if the system manually disabled by a button
+    if (currentState == DISABLED)
     {
         return DISABLED;
     }
 
     // Check for any error conditions in sensor readings
-    if (temperature == -999.0 || humidity == -999.0 || waterLevel < 100 || waterLevel > 200) // Use standardized error handling
+    if (temperature == -999.0 || humidity == -999.0 || waterLevel < 100 || waterLevel > 200) 
     {
         return ERROR;
     }
 
     // Check if conditions to run the system are met
-    if (humidity > 33.00) // Threshold for activating the system, adjust as necessary
+    if (temperature > 26.00) // Threshold for activating the system, adjust as necessary
     {
         return RUNNING;
     }
@@ -236,6 +246,7 @@ State determineState()
 }
 
 // ------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
 
 void handleErrorState()
 {
@@ -251,10 +262,10 @@ void handleErrorState()
     lcd.print(waterLevel);
 
     // Set LED indicators
-    digitalWrite(GREEN_LED, LOW);
-    digitalWrite(BLUE_LED, LOW);
-    digitalWrite(RED_LED, HIGH);
-    digitalWrite(YELLOW_LED, LOW);
+    *_portA &= ~(1 << 5); 
+    *_portC &= ~(1 << 6);
+    *_portA |= (1 << 7);  
+    *_portA &= ~(1 << 3); 
 
     recordTransitionTime("ERROR");
 
@@ -266,19 +277,18 @@ void handleErrorState()
         waterLevel = readWaterLevel();
         updateLCD(temperature, humidity);
         lastUpdateTime = millis();
-        delay(3000);
+        my_delay(3);
     }
 }
 
 void handleIdleState()
 {
-    digitalWrite(GREEN_LED, HIGH); // GREEN LED ON to indicate IDLE state
-    digitalWrite(RED_LED, LOW);    // Ensure RED LED is OFF
-    digitalWrite(BLUE_LED, LOW);   // Ensure BLUE LED is OFF
-    digitalWrite(YELLOW_LED, LOW); // Ensure YELLOW LED is OFF
+    *_portA |= (1 << 5);  
+    *_portA &= ~(1 << 7); 
+    *_portC &= ~(1 << 6); 
+    *_portA &= ~(1 << 3); 
 
-    controlFanMotor(false); // Ensure fan motor is off
-
+    controlFanMotor(false); 
 
     // Update LCD every minute
     if (millis() - lastUpdateTime >= 60000)
@@ -288,9 +298,8 @@ void handleIdleState()
         waterLevel = readWaterLevel();
         updateLCD(temperature, humidity);
         lastUpdateTime = millis();
-        delay(3000);
+        my_delay(3);
     }
-    
 
     // Display message on LCD
     lcd.clear();
@@ -310,10 +319,10 @@ void handleIdleState()
 
 void handleRunningState()
 {
-    digitalWrite(BLUE_LED, HIGH);
-    digitalWrite(RED_LED, LOW);
-    digitalWrite(GREEN_LED, LOW);
-    digitalWrite(YELLOW_LED, LOW);
+    *_portC |= (1 << 6); 
+    *_portA &= ~(1 << 7); 
+    *_portA &= ~(1 << 5); 
+    *_portA &= ~(1 << 3); 
 
     // Record transition time to RUNNING state
     recordTransitionTime("RUNNING");
@@ -332,37 +341,36 @@ void handleRunningState()
         return;
     }
 
-        // Display message on LCD
-      lcd.clear();
-      lcd.setCursor(0, 0);
-      lcd.print("Running");
+    // Display message on LCD
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Running");
 
+    // Update LCD every minute
     if (millis() - lastUpdateTime >= 60000)
     {
         temperature = readTemperature();
         humidity = readHumidity();
         updateLCD(temperature, humidity);
         lastUpdateTime = millis();
-        delay(3000);
+        my_delay(3);
     }
 
-    // Control fan motor
     controlFanMotor(true);
 }
 
 // Handle DISABLED State
 void handleDisabledState()
 {
-    digitalWrite(YELLOW_LED, HIGH); // YELLOW LED ON to indicate DISABLED state
-    digitalWrite(GREEN_LED, LOW);   // Ensure GREEN LED is OFF
-    digitalWrite(BLUE_LED, LOW);    // Ensure BLUE LED is OFF
-    digitalWrite(RED_LED, LOW);     // Ensure RED LED is OFF
-
+    *_portA |= (1 << 3); 
+    *_portA &= ~(1 << 5); 
+    *_portC &= ~(1 << 6); 
+    *_portA &= ~(1 << 7); 
     controlFanMotor(false);
 
     recordTransitionTime("DISABLED");
 
-    lcd.clear(); 
+    lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("Disabled");
 }
@@ -378,7 +386,6 @@ void handleStepMotorButton()
         recordStepperPosition();
     }
 }
-
 
 void handleOnOffButton()
 {
@@ -402,25 +409,43 @@ void onOffButtonISR()
     onOffButtonPressed = true;
 }
 
-void recordTransitionTime(String state)
-{
-    // Define static variables to store last state and transition time
-    static String lastState = "";
-    static DateTime lastTransitionTime;
+void my_delay(unsigned long delaySeconds) {
+  DateTime currentTime = rtc.now(); 
+  DateTime endTime = currentTime + TimeSpan(delaySeconds);
+  while (rtc.now() < endTime) {
+  }
+}
 
+void recordTransitionTime(const char *state) {
+    static const char *lastState = "";
     DateTime now = rtc.now();
-    
-    // Check if the new state is different from the last recorded state
-    if (state != lastState) {
-        Serial.println(state + " state at: " + now.timestamp());
+
+    if (strcmp(state, lastState) != 0) {
+        char buffer[50];
+        sprintf(buffer, "%s state at: %ld\n", state, now.timestamp());
+        U0print(buffer);
         lastState = state;
-        lastTransitionTime = now;
-        delay(100);
+        my_delay(1); 
     }
 }
 
-void recordStepperPosition()
-{
+void recordStepperPosition() {
     DateTime now = rtc.now();
-    Serial.println("Stepper Motor Position Changed at: " + now.timestamp());
+    char buffer[50];
+    sprintf(buffer, "Stepper Motor Position Changed at: %ld\n", now.timestamp());
+    U0print(buffer);
 }
+
+void U0print(const char *str) {
+    while (*str != '\0') {
+        U0putchar(*str);
+        str++;
+    }
+}
+
+void U0putchar(unsigned char U0pdata) {
+    while (!(*myUCSR0A & TBE));
+    *myUDR0 = U0pdata;
+}
+
+
