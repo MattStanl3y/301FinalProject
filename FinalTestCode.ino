@@ -52,6 +52,14 @@ volatile uint8_t *_portA = (volatile uint8_t *)0x22;
 volatile uint8_t *_portDDRA = (volatile uint8_t *)0x21;
 volatile uint8_t *_portL = (volatile uint8_t *)0x10B;
 volatile uint8_t *_portDDRL = (volatile uint8_t *)0x10A;
+volatile uint8_t *_portC = (volatile uint8_t *)0x28;    // Add this line
+volatile uint8_t *_portDDRC = (volatile uint8_t *)0x27; // Add this line
+
+// ADC Pointers
+volatile uint8_t *_ADMUX = (volatile uint8_t *)0x7C;  // Add this line
+volatile uint8_t *_ADCSRA = (volatile uint8_t *)0x7A; // Add this line
+volatile uint8_t *_ADCL = (volatile uint8_t *)0x78;   // Add this line
+volatile uint8_t *_ADCH = (volatile uint8_t *)0x79;   // Add this line
 
 // volatile buttonStates
 volatile bool onOffButtonPressed = false;
@@ -172,20 +180,10 @@ float readHumidity()
 
 int readWaterLevel()
 {
-    *_portB |= (1 << 7); // Set PB7 (POWER_PIN) high
-    delay(10);
-
-    // Set ADC channel to A0
     *_ADMUX = (*_ADMUX & 0xF0) | 0x00;
-
-    // Start ADC conversion
     *_ADCSRA |= (1 << ADSC);
-
-    // Wait for conversion to complete
     while ((*_ADCSRA & (1 << ADSC)) != 0)
         ;
-
-    // Read ADC value
     int waterLevel = *_ADCL | (*_ADCH << 8);
 
     *_portB &= ~(1 << 7); // Set PB7 (POWER_PIN) low
@@ -439,7 +437,6 @@ void recordStepperPosition()
     DateTime now = rtc.now();
     Serial.println("Stepper Motor Position Changed at: " + now.timestamp());
 }
-
 
 /*
 /private/var/folders/g7/9z_y3bl14wb5k4y3yrxsy80h0000gn/T/.arduinoIDE-unsaved2024410-2055-6xes0a.1ag0p/sketch_may10b/sketch_may10b.ino: In function 'void setup()':
