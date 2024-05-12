@@ -15,14 +15,12 @@ This project aims to create an evaporation cooling system (a swamp cooler), whic
 - Monitoring water levels in the reservoir with alerts for low levels.
 - Displaying air temperature and humidity on an LCD screen.
 - Controlling fan motor based on temperature range.
-- User control over the output vent angle.
 - On/off system control via a user button.
 - Logging time and date of motor activation/deactivation.
 
 ## Hardware Component Selection
 
 - Water level sensor for monitoring with threshold detection.
-- Stepper motor for vent direction control.
 - LCD display for output messages.
 - Real-time clock module for event reporting.
 - DHT11 sensor for temperature and humidity readings.
@@ -61,5 +59,5 @@ Please ensure all commits are properly commented and that the repository is set 
 ## Links
 
 - [GitHub Repository](https://github.com/MattStanl3y/301FinalProject)
-- [Demonstration Video](link-to-video)
-- [Technical Document](link-to-document)
+- [Demonstration Video](https://drive.google.com/file/d/1-cBQ-8gxt2DP7--STzRgNJXBkg23tMsw/view?usp=sharing)
+- [Technical Document](...)
