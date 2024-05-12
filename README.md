@@ -26,8 +26,6 @@ This project aims to create an evaporation cooling system (a swamp cooler), whic
 - DHT11 sensor for temperature and humidity readings.
 - Motor and fan blade from the kit with a separate power supply board.
 
-![State Diagram](https://github.com/MattStanl3y/301FinalProject/blob/main/diagram.jpeg)
-
 ## System States
 
 The cooler operates in several states: DISABLED, IDLE, ERROR, and RUNNING. Each state has specific requirements for operation and LED indication.
@@ -60,4 +58,4 @@ Please ensure all commits are properly commented and that the repository is set 
 
 - [GitHub Repository](https://github.com/MattStanl3y/301FinalProject)
 - [Demonstration Video](https://drive.google.com/file/d/1-cBQ-8gxt2DP7--STzRgNJXBkg23tMsw/view?usp=sharing)
-- [Technical Document](...)
+- [Technical Document](https://github.com/MattStanl3y/301FinalProject/blob/main/project-resources/TechnicalDocument.pdf)
